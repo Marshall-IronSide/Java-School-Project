@@ -48,5 +48,6 @@ public class Election {
             int voix = scanner.nextInt();
             c.setSuffragesSecondTour(voix);
         }
+        Candidat vainqueur = (secondTour.get(0).getSuffragesSecondTour() > secondTour.get(1).getStuffragesSecondtoure());
     }
 }
