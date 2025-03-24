@@ -1,3 +1,4 @@
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
@@ -25,6 +26,12 @@ public class Election {
         }
     }
     public Map<Candidat, Double> calculerPourcentages(){
-        Map<Candidat, Double>
+        Map<Candidat, Double> pourcentages = new HashMap<>();
+        for (Candidat c: candidats){
+            double pourcentage = (c.getSuffragesPremierTour()*100.0)/totalVotants;
+            pourcentages.put(c, pourcentage);
+        }
+        return pourcentages;
     }
+    
 }
