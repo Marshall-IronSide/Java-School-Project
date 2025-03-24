@@ -33,5 +33,14 @@ public class Election {
         }
         return pourcentages;
     }
+    public void determinerResultatsPremierTour(){
+        for (Candidat c: candidats){
+            double pourcentage = (c.getSuffragesPremierTour()*100.0)/totalVotants;
+            if (pourcentage > 50.0){
+                System.out.println("Vainqueur au premier tour : "+ c.getNom());
+                return;
+            }
+        }
+    }
     
 }
