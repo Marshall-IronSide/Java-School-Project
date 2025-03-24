@@ -1,7 +1,4 @@
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
+import java.util.*;
 
 public class Election {
     List<Candidat> candidats;
@@ -42,5 +39,14 @@ public class Election {
             }
         }
     }
-    
+    public void gererResultatsSecondTour(){
+        List<Candidat> SecondTour = candidats.subList(0, 2);
+
+        System.out.println("--- SECOND TOUR ---");
+        for (Candidat c: SecondTour){
+            System.out.println("Voix pour "+c.getNom()+": ");
+            int voix = scanner.nextInt();
+            c.setSuffragesSecondTour(voix);
+        }
+    }
 }
