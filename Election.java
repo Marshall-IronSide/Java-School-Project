@@ -48,22 +48,17 @@ public class Election {
             System.out.println("Erreur SQL: "+ e.getMessage());
         }
     }
-    public Map<Candidat, Double> calculerPourcentages(){
-        Map<Candidat, Double> pourcentages = new HashMap<>();
-        for (Candidat c: candidats){
-            double pourcentage = (c.getSuffragesPremierTour()*100.0)/totalVotants;
-            pourcentages.put(c, pourcentage);
-        }
-        return pourcentages;
-    }
     public void determinerResultatsPremierTour(){
+        candidats.sort((c1,c2) -> c2.getSuffragesPremierTour() - c1.getSuffragesPremierTour());
         for (Candidat c: candidats){
             double pourcentage = (c.getSuffragesPremierTour()*100.0)/totalVotants;
             if (pourcentage > 50.0){
-                System.out.println("Vainqueur au premier tour : "+ c.getNom());
+                System.out.println(c.getNom() + " élu au premier tour avec " + String.format("%.2f", pourcentage) + "%");
                 return;
             }
         }
+        System.out.println("Second tour nécessaire !");
+        List<Candidat> secondTour = candidats.subList(0,2);
     }
     public void gererResultatsSecondTour(){
         List<Candidat> SecondTour = candidats.subList(0, 2);
