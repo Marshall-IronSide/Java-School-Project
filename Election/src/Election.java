@@ -61,12 +61,12 @@ public class Election {
         List<Candidat> secondTour = candidats.subList(0,2);
         System.out.println("Candidats en second tour : " + secondTour.get(0).getNom() + " et " + secondTour.get(1).getNom());
     }
-    public void gererSecondTour(){
-        List<Candidat> SecondTour = candidats.subList(0, 2);
+    public void gererSecondTour(Scanner scanner){
+        List<Candidat> secondTour = candidats.subList(0, 2);
         System.out.println("--- SECOND TOUR ---");
 
         try (Connection conn = DatabaseManager.getConnection()){
-            for (Candidat c: SecondTour){
+            for (Candidat c: secondTour){
                 System.out.println("Voix pour "+c.getNom()+": ");
                 int voix = scanner.nextInt();
 
