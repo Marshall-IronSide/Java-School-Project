@@ -2,17 +2,30 @@ import java.util.*;
 import java.sql.*;
 
 public class Election {
-    List<Candidat> candidats;
-    int totalVotants;
+    List<Candidat> candidats = new ArrayList<>();
+    private int totalVotants;
+
     public void saisirCandidats(Scanner scanner){
         System.out.println("Nombre de candidats: ");
         int nbCandidats = scanner.nextInt();
         scanner.nextLine();// Pour consommer le "\n"
-        for (int i = 0; i < nbCandidats; i++) {
-            System.out.println("Nom du candidat: "+(i+1)+":");
-            String nom = scanner.nextLine();
-            candidats.add(new Candidat(nom));
+
+        try (Connection conn = DatabaseManager.getConnection()){
+            for (int i = 0; i < nbCandidats; i++) {
+                System.out.println("Nom du candidat: "+(i+1)+":");
+                String nom = scanner.nextLine();
+
+                String sql = "INSERT INTO candidat (nom) VALUES (?)";
+                try (PreparedStatement pstmt = conn.prepareStatement(sql)){
+                    pstmt.setString(1, nom);
+                    pstmt.executeUpdate();
+                }
+                candidats.add(new Candidat(nom));
+            }
+        }catch (SQLException e){
+            System.out.println("Erreur SQL: "+ e.getMessage());
         }
+
     }
     public void saisirSuffragesPremierTour(Scanner scanner){
         System.out.println("Nombre total de votants: ");
