@@ -59,16 +59,30 @@ public class Election {
         }
         System.out.println("Second tour nécessaire !");
         List<Candidat> secondTour = candidats.subList(0,2);
+        System.out.println("Candidats en second tour : " + secondTour.get(0).getNom() + " et " + secondTour.get(1).getNom());
     }
-    public void gererResultatsSecondTour(){
+    public void gererSecondTour(){
         List<Candidat> SecondTour = candidats.subList(0, 2);
-
         System.out.println("--- SECOND TOUR ---");
-        for (Candidat c: SecondTour){
-            System.out.println("Voix pour "+c.getNom()+": ");
-            int voix = scanner.nextInt();
-            c.setSuffragesSecondTour(voix);
+
+        try (Connection conn = DatabaseManager.getConnection()){
+            for (Candidat c: SecondTour){
+                System.out.println("Voix pour "+c.getNom()+": ");
+                int voix = scanner.nextInt();
+
+                String sql = "UPDATE candidat SET suffrages_second_tour = ? WHERE nom = ?";
+                try (PreparedStatement pstmt = conn.prepareStatement(sql)){
+                    pstmt.setInt(1,voix);
+                    pstmt.setString(2, c.getNom());
+                    pstmt.executeUpdate();
+                }
+                c.setSuffragesSecondTour(voix);
+            }
+            Candidat vainqueur = (secondTour.get(0).getSuffragesSecondTour() > secondTour.get(1).getSuffragesSecondTour())
+                    ? secondTour.get(0) : secondTour.get(1);
+            System.out.println("Vainqueur : " + vainqueur.getNom());
+        }catch (SQLException e){
+            System.out.println("Erreur SQL: "+ e.getMessage());
         }
-        Candidat vainqueur = (secondTour.get(0).getSuffragesSecondTour() > secondTour.get(1).getStuffragesSecondtoure());
     }
 }
