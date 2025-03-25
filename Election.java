@@ -30,10 +30,22 @@ public class Election {
     public void saisirSuffragesPremierTour(Scanner scanner){
         System.out.println("Nombre total de votants: ");
         this.totalVotants = scanner.nextInt();
-        for (Candidat c: candidats){
-            System.out.print("voix pour : "+c.getNom());
-            int voix = scanner.nextInt();
-            c.setSuffragesPremierTour(voix);
+
+        try (Connection conn = DatabaseManager.getConnection()){
+            for (Candidat c: candidats){
+                System.out.print("voix pour : "+c.getNom());
+                int voix = scanner.nextInt();
+
+                String sql = "UPDATE candidat SET suffrages_premier_tour = ? WHERE nom = ?";
+                try (PreparedStatement pstmt = conn.prepareStatement(sql)){
+                    pstmt.setInt(1,voix);
+                    pstmt.setString(2, c.getNom());
+                    pstmt.executeUpdate();
+                }
+                c.setSuffragesPremierTour(voix);
+            }
+        }catch (SQLException e){
+            System.out.println("Erreur SQL: "+ e.getMessage());
         }
     }
     public Map<Candidat, Double> calculerPourcentages(){
