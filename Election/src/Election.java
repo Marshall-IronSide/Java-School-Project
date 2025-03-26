@@ -15,6 +15,17 @@ public class Election {
                 System.out.println("Nom du candidat: "+(i+1)+":");
                 String nom = scanner.nextLine();
 
+                String checkSql = "SELECT COUNT(*) FROM candidat WHERE nom = ?";
+                try(PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+                    checkStmt.setString(1, nom);
+                    ResultSet rs = checkStmt.executeQuery();
+                    rs.next();
+                    if(rs.getInt(1)>0){
+                        System.out.println("Erreur : " + nom + " existe déjà !");
+                        i--;
+                        continue;
+                    }
+                }
                 String sql = "INSERT INTO candidat (nom) VALUES (?)";
                 try (PreparedStatement pstmt = conn.prepareStatement(sql)){
                     pstmt.setString(1, nom);
