@@ -33,7 +33,7 @@ public class Election {
 
         try (Connection conn = DatabaseManager.getConnection()){
             for (Candidat c: candidats){
-                System.out.print("voix pour : "+c.getNom());
+                System.out.print("voix pour : "+c.getNom()+"\n");
                 int voix = scanner.nextInt();
 
                 String sql = "UPDATE candidat SET suffrages_premier_tour = ? WHERE nom = ?";
@@ -85,4 +85,5 @@ public class Election {
             System.out.println("Erreur SQL: "+ e.getMessage());
         }
     }
+
 }
