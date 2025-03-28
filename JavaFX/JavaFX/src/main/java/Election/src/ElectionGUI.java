@@ -110,11 +110,6 @@ public class ElectionGUI extends Application {
         determinerResultats();
     }
 
-    private void determinerResultats() {
-        // Logique de calcul des résultats ici
-        showAlert("Résultats calculés !");
-    }
-
     private void chargerCandidatsDepuisBDD() {
         try (Connection conn = DatabaseManager.getConnection()) {
             Statement stmt = conn.createStatement();
@@ -134,6 +129,92 @@ public class ElectionGUI extends Application {
             String sql = "UPDATE candidat SET suffrages_premier_tour = ? WHERE nom = ?";
             PreparedStatement pstmt = conn.prepareStatement(sql);
             pstmt.setInt(1, c.suffragesPremierTourProperty().get());
+            pstmt.setString(2, c.nomProperty().get());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    private void determinerResultats() {
+        // Calcul du total des votants
+        int totalVotants = candidats.stream()
+                .mapToInt(c -> c.suffragesPremierTourProperty().get())
+                .sum();
+
+        // Vérifier si un candidat a >50% au premier tour
+        boolean victoirePremierTour = false;
+        StringBuilder resultats = new StringBuilder("RÉSULTATS DU PREMIER TOUR :\n");
+
+        for (Candidat c : candidats) {
+            double pourcentage = (c.suffragesPremierTourProperty().get() * 100.0) / totalVotants;
+            resultats.append(String.format("- %s : %d voix (%.2f%%)\n",
+                    c.nomProperty().get(),
+                    c.suffragesPremierTourProperty().get(),
+                    pourcentage));
+
+            if (pourcentage > 50.0) {
+                showAlert(resultats + "\nVICTOIRE AU PREMIER TOUR : " + c.nomProperty().get());
+                victoirePremierTour = true;
+                return;
+            }
+        }
+
+        // Si second tour nécessaire
+        resultats.append("\n➤ SECOND TOUR REQUIS !");
+        showAlert(resultats.toString());
+        lancerSecondTour();
+    }
+
+    private void lancerSecondTour() {
+        // Sélectionner les 2 premiers candidats
+        candidats.sort((c1, c2) -> c2.suffragesPremierTourProperty().get() - c1.suffragesPremierTourProperty().get());
+        ObservableList<Candidat> secondTour = FXCollections.observableArrayList(
+                candidats.get(0),
+                candidats.get(1)
+        );
+
+        // Fenêtre pour saisir les voix du second tour
+        Stage stageSecondTour = new Stage();
+        VBox vbox = new VBox(10);
+
+        for (Candidat c : secondTour) {
+            TextField txtVoix = new TextField();
+            txtVoix.setPromptText("Voix pour " + c.nomProperty().get());
+            vbox.getChildren().add(txtVoix);
+        }
+
+        Button btnValider = new Button("Valider");
+        btnValider.setOnAction(e -> {
+            for (int i = 0; i < secondTour.size(); i++) {
+                TextField txt = (TextField) vbox.getChildren().get(i);
+                int voix = Integer.parseInt(txt.getText());
+                secondTour.get(i).suffragesSecondTourProperty().set(voix);
+                mettreAJourSecondTourBDD(secondTour.get(i));
+            }
+            afficherVainqueurSecondTour(secondTour);
+            stageSecondTour.close();
+        });
+
+        vbox.getChildren().add(btnValider);
+        stageSecondTour.setScene(new Scene(vbox, 300, 200));
+        stageSecondTour.show();
+    }
+
+    private void afficherVainqueurSecondTour(ObservableList<Candidat> secondTour) {
+        Candidat vainqueur = (secondTour.get(0).suffragesSecondTourProperty().get() >
+                secondTour.get(1).suffragesSecondTourProperty().get())
+                ? secondTour.get(0) : secondTour.get(1);
+
+        showAlert("VAINQUEUR AU SECOND TOUR :\n" +
+                vainqueur.nomProperty().get() + " (" +
+                vainqueur.suffragesSecondTourProperty().get() + " voix)");
+    }
+
+    private void mettreAJourSecondTourBDD(Candidat c) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            String sql = "UPDATE candidat SET suffrages_second_tour = ? WHERE nom = ?";
+            PreparedStatement pstmt = conn.prepareStatement(sql);
+            pstmt.setInt(1, c.suffragesSecondTourProperty().get());
             pstmt.setString(2, c.nomProperty().get());
             pstmt.executeUpdate();
         } catch (SQLException e) {

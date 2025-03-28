@@ -15,5 +15,8 @@ public class Candidat {
     public StringProperty nomProperty() { return nom; }
     public IntegerProperty suffragesPremierTourProperty() { return suffragesPremierTour; }
     public IntegerProperty suffragesSecondTourProperty() { return suffragesSecondTour; }
+    public String getNom() { return nom.get(); }
+    public int getSuffragesPremierTour() { return suffragesPremierTour.get(); }
+    public int getSuffragesSecondTour() { return suffragesSecondTour.get(); }
 
 }

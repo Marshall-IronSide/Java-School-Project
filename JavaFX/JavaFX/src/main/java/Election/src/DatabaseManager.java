@@ -22,6 +22,15 @@ public class DatabaseManager {
             e.printStackTrace();
         }
     }
+    public static void mettreAJourSecondTour(Candidat c) throws SQLException {
+        try (Connection conn = getConnection()) {
+            String sql = "UPDATE candidat SET suffrages_second_tour = ? WHERE nom = ?";
+            PreparedStatement pstmt = conn.prepareStatement(sql);
+            pstmt.setInt(1, c.getSuffragesSecondTour());
+            pstmt.setString(2, c.getNom());
+            pstmt.executeUpdate();
+        }
+    }
     public static void supprimerCandidat(String nom) throws SQLException {
         try (Connection conn = getConnection()) {
             String sql = "DELETE FROM candidat WHERE nom = ?";
