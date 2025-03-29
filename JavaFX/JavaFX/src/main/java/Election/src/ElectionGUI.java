@@ -256,29 +256,43 @@ public class ElectionGUI extends Application {
     }
 
     private void demanderVoixSecondTour(List<Candidat> finalistes) {
-        finalistes.forEach(c -> {
-            TextInputDialog dialog = new TextInputDialog();
-            dialog.setTitle("Second tour - " + c.getNom());
-            dialog.setHeaderText("Voix pour " + c.getNom() + " :");
+        Stage stage = new Stage();
+        VBox vbox = new VBox(10);
+        vbox.setPadding(new Insets(20));
 
-            dialog.showAndWait().ifPresent(voixStr -> {
-                try {
-                    int voix = Integer.parseInt(voixStr);
-                    c.setSuffragesSecondTour(voix);
-                    mettreAJourSecondTourBDD(c);
-                    tableCandidats.refresh();
+        List<TextField> champsVoix = new ArrayList<>();
+
+        for(Candidat c : finalistes) {
+            Label label = new Label(c.getNom() + ":");
+            TextField txtVoix = new TextField();
+            txtVoix.setPromptText("Voix au second tour");
+            vbox.getChildren().addAll(label, txtVoix);
+            champsVoix.add(txtVoix);
+        }
+
+        Button btnValider = new Button("Valider les résultats");
+        btnValider.setStyle("-fx-base: #27ae60;");
+
+        btnValider.setOnAction(e -> {
+            try {
+                for(int i = 0; i < finalistes.size(); i++) {
+                    int voix = Integer.parseInt(champsVoix.get(i).getText());
+                    finalistes.get(i).setSuffragesSecondTour(voix);
+                    mettreAJourSecondTourBDD(finalistes.get(i));
                 }
-                catch (NumberFormatException e) {
-                    afficherErreur("Valeur invalide !");
-                }
-            });
+                rafraichirDonnees();
+                afficherResultatFinal(finalistes);
+                stage.close();
+            } catch (NumberFormatException ex) {
+                afficherErreur("Veuillez entrer des nombres valides !");
+            }
         });
 
-        Candidat vainqueur = finalistes.get(0).getSuffragesSecondTour() > finalistes.get(1).getSuffragesSecondTour()
-                ? finalistes.get(0) : finalistes.get(1);
-
-        afficherResultat("VAINQUEUR FINAL : " + vainqueur.getNom() +
-                " (" + vainqueur.getSuffragesSecondTour() + " voix)");
+        vbox.getChildren().add(btnValider);
+        Scene scene = new Scene(vbox, 300, 250);
+        stage.setScene(scene);
+        stage.setTitle("Saisie du second tour");
+        stage.show();
     }
 
     private void mettreAJourBDD(Candidat c) {
@@ -322,11 +336,28 @@ public class ElectionGUI extends Application {
         alert.showAndWait();
     }
 
-    // MÉTHODES EXISTANTES COMPLÉTÉES
 
+    private void rafraichirDonnees() {
+        candidats.clear();
+        try (Connection conn = DatabaseManager.getConnection()) {
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM candidat");
+            while (rs.next()) {
+                Candidat c = new Candidat(rs.getString("nom"));
+                c.setSuffragesPremierTour(rs.getInt("suffrages_premier_tour"));
+                c.setSuffragesSecondTour(rs.getInt("suffrages_second_tour"));
+                candidats.add(c);
+            }
+        } catch (SQLException e) {
+            afficherErreur("Erreur de rafraîchissement : " + e.getMessage());
+        }
+        tableCandidats.setItems(candidats);
+    }
+
+    // Modifier la méthode rafraichirTableau()
     private void rafraichirTableau() {
-        tableCandidats.refresh();
-        statusLabel.setText("Données mises à jour - " + java.time.LocalDateTime.now().toString());
+        rafraichirDonnees();
+        statusLabel.setText("Données mises à jour - " + java.time.LocalDateTime.now());
     }
 
     private void confirmerCalcul() {
@@ -357,21 +388,35 @@ public class ElectionGUI extends Application {
         chartStage.show();
     }
 
-    private void afficherResultat(String message) {
-        TextArea area = new TextArea(message);
-        area.setEditable(false);
-        area.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 14px;");
+    private void afficherResultatFinal(List<Candidat> finalistes) {
+        int totalSecondTour = finalistes.stream()
+                .mapToInt(Candidat::getSuffragesSecondTour)
+                .sum();
 
-        VBox box = new VBox(20, area);
-        box.setPadding(new Insets(20));
+        StringBuilder sb = new StringBuilder("=== RÉSULTATS DÉTAILLÉS ===\n\n");
+        sb.append("➤ SECOND TOUR - RÉSULTATS FINAUX\n");
+        sb.append(String.format("Total des votants : %d\n\n", totalSecondTour));
 
-        Stage stage = new Stage();
-        stage.setTitle("Résultats détaillés");
-        stage.setScene(new Scene(box, 500, 300));
-        stage.show();
+        for(Candidat c : finalistes) {
+            double pourcentageSecondTour = (c.getSuffragesSecondTour() * 100.0) / totalSecondTour;
+            double pourcentagePremierTour = (c.getSuffragesPremierTour() * 100.0) / totalVotants;
+
+            sb.append(String.format("%s :\n", c.getNom()))
+                    .append(String.format("Premier tour : %d voix (%.2f%%)\n",
+                            c.getSuffragesPremierTour(), pourcentagePremierTour))
+                    .append(String.format("Second tour : %d voix (%.2f%%)\n\n",
+                            c.getSuffragesSecondTour(), pourcentageSecondTour));
+        }
+
+        Candidat vainqueur = finalistes.get(0).getSuffragesSecondTour() >
+                finalistes.get(1).getSuffragesSecondTour()
+                ? finalistes.get(0) : finalistes.get(1);
+
+        sb.append("\n🏆 VAINQUEUR FINAL : ")
+                .append(vainqueur.getNom())
+                .append("\n")
+                .append(String.format("Avec %d voix au second tour !", vainqueur.getSuffragesSecondTour()));
+
+        afficherResultat(sb.toString());
+        afficherGraphiqueResultats();
     }
-
-    public static void main(String[] args) {
-        launch(args);
-    }
-}
