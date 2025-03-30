@@ -27,6 +27,12 @@ public class ElectionGUI extends Application {
     private Button btnValiderVotants;
     private VBox panelPremierTour;
     private VBox panelSecondTour;
+    private GridPane gridPremierTour;
+    private GridPane gridSecondTour;
+    private Button btnEnregistrerPremierTour;
+    private Button btnCalculerPremierTour;
+    private Button btnEnregistrerSecondTour;
+    private Button btnCalculerSecondTour;
 
     @Override
     public void start(Stage primaryStage) {
@@ -86,88 +92,151 @@ public class ElectionGUI extends Application {
     private void creerPanelPremierTour() {
         panelPremierTour = new VBox(10);
         panelPremierTour.getStyleClass().add("panel");
-        Button btnCalculer = new Button("Calculer résultats premier tour");
-        btnCalculer.setOnAction(e -> calculerPremierTour());
+
+        gridPremierTour = creerGrilleSuffrages(false);
+
+        btnEnregistrerPremierTour = new Button("Enregistrer les voix");
+        btnEnregistrerPremierTour.setOnAction(e -> enregistrerVoixPremierTour());
+
+        btnCalculerPremierTour = new Button("Calculer résultats premier tour");
+        btnCalculerPremierTour.setDisable(true);
+        btnCalculerPremierTour.setOnAction(e -> calculerPremierTour());
+
+        btnEnregistrerPremierTour.disableProperty().bind(
+                Bindings.createBooleanBinding(() ->
+                                !tousChampsRemplis(gridPremierTour),
+                        gridPremierTour.getChildren()
+                )
+        );
 
         panelPremierTour.getChildren().addAll(
                 new Label("Premier Tour - Saisie des suffrages:"),
-                creerGrilleSuffrages(),
-                btnCalculer
+                gridPremierTour,
+                new HBox(10, btnEnregistrerPremierTour, btnCalculerPremierTour)
         );
         mainLayout.getChildren().add(panelPremierTour);
         panelPremierTour.setVisible(false);
     }
 
-    private GridPane creerGrilleSuffrages() {
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(5);
-        int row = 0;
-
-        for(Candidat c : candidats) {
-            TextField tfVotes = new TextField("0");
-            tfVotes.textProperty().addListener((obs, oldVal, newVal) -> {
-                if (!newVal.matches("\\d*")) tfVotes.setText(oldVal);
-            });
-
-            grid.addRow(row++,
-                    new Label(c.getNom()),
-                    tfVotes
-            );
-        }
-        return grid;
-    }
-
     private void creerPanelSecondTour() {
         panelSecondTour = new VBox(10);
         panelSecondTour.getStyleClass().add("panel");
-        Button btnCalculerSecond = new Button("Calculer résultats second tour");
-        btnCalculerSecond.setOnAction(e -> calculerSecondTour());
+
+        gridSecondTour = creerGrilleSuffrages(true);
+
+        btnEnregistrerSecondTour = new Button("Enregistrer les voix");
+        btnEnregistrerSecondTour.setOnAction(e -> enregistrerVoixSecondTour());
+
+        btnCalculerSecondTour = new Button("Calculer résultats second tour");
+        btnCalculerSecondTour.setDisable(true);
+        btnCalculerSecondTour.setOnAction(e -> calculerSecondTour());
+
+        btnEnregistrerSecondTour.disableProperty().bind(
+                Bindings.createBooleanBinding(() ->
+                                !tousChampsRemplis(gridSecondTour),
+                        gridSecondTour.getChildren()
+                )
+        );
+
         panelSecondTour.getChildren().addAll(
                 new Label("Second Tour - Saisie des suffrages:"),
-                btnCalculerSecond
+                gridSecondTour,
+                new HBox(10, btnEnregistrerSecondTour, btnCalculerSecondTour)
         );
         mainLayout.getChildren().add(panelSecondTour);
         panelSecondTour.setVisible(false);
     }
 
-    private void ajouterCandidat() {
-        String nom = tfNomCandidat.getText().trim();
-        if (!nom.isEmpty() && candidats.stream().noneMatch(c -> c.getNom().equalsIgnoreCase(nom))) {
-            Candidat nouveau = new Candidat(nom);
-            candidats.add(nouveau);
-            DatabaseManager.sauvegarderCandidat(nouveau);
-            tfNomCandidat.clear();
-        } else {
-            afficherAlerte("Nom invalide ou déjà existant !");
+    private GridPane creerGrilleSuffrages(boolean secondTour) {
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(5);
+
+        List<Candidat> candidates = secondTour ?
+                candidats.stream().filter(Candidat::isQualifieSecondTour).collect(Collectors.toList()) :
+                candidats;
+
+        for(int i = 0; i < candidates.size(); i++) {
+            Candidat c = candidates.get(i);
+            TextField tfVotes = new TextField("0");
+            tfVotes.setId("vote_" + c.getId());
+            grid.addRow(i, new Label(c.getNom()), tfVotes);
         }
+        return grid;
     }
 
-    private void validerVotants() {
-        try {
-            totalVotants = Integer.parseInt(tfVotants.getText());
-            if(totalVotants > 0) {
-                panelPremierTour.setVisible(true);
-                btnValiderVotants.setDisable(true);
+    private void enregistrerVoixPremierTour() {
+        int row = 0;
+        for(Node node : gridPremierTour.getChildren()) {
+            if(node instanceof TextField) {
+                TextField tf = (TextField) node;
+                try {
+                    int votes = Integer.parseInt(tf.getText());
+                    candidats.get(row).setSuffragesPremierTour(votes);
+                    row++;
+                } catch (NumberFormatException e) {
+                    afficherAlerte("Valeur invalide pour " + candidats.get(row).getNom());
+                    return;
+                }
             }
-        } catch (NumberFormatException e) {
-            afficherAlerte("Nombre de votants invalide !");
         }
+        btnCalculerPremierTour.setDisable(false);
+        afficherAlerte("Voix enregistrées avec succès !");
+    }
+
+    private void enregistrerVoixSecondTour() {
+        int row = 0;
+        List<Candidat> qualifiés = candidats.stream()
+                .filter(Candidat::isQualifieSecondTour)
+                .collect(Collectors.toList());
+
+        for(Node node : gridSecondTour.getChildren()) {
+            if(node instanceof TextField) {
+                TextField tf = (TextField) node;
+                try {
+                    int votes = Integer.parseInt(tf.getText());
+                    qualifiés.get(row).setSuffragesSecondTour(votes);
+                    row++;
+                } catch (NumberFormatException e) {
+                    afficherAlerte("Valeur invalide pour " + qualifiés.get(row).getNom());
+                    return;
+                }
+            }
+        }
+        btnCalculerSecondTour.setDisable(false);
+        afficherAlerte("Voix enregistrées avec succès !");
+    }
+
+    private boolean tousChampsRemplis(GridPane grid) {
+        return grid.getChildren().stream()
+                .filter(n -> n instanceof TextField)
+                .allMatch(n -> !((TextField)n).getText().isEmpty());
     }
 
     private void calculerPremierTour() {
         // Récupérer les votes depuis l'interface
         List<Candidat> candidatsAvecVotes = new ArrayList<>();
         GridPane grid = (GridPane) panelPremierTour.getChildren().get(1);
-
-        int row = 0;
+        int rowIndex = 0;
         for(Node node : grid.getChildren()) {
-            if(node instanceof TextField) {
-                int votes = Integer.parseInt(((TextField) node).getText());
-                candidats.get(row).setSuffragesPremierTour(votes);
-                row++;
+            if (node instanceof TextField) {
+                TextField tfVotes = (TextField) node;
+                try {
+                    int votes = Integer.parseInt(tfVotes.getText());
+                    candidats.get(rowIndex).setSuffragesPremierTour(votes);
+                    rowIndex++;
+                } catch (NumberFormatException e) {
+                    afficherAlerte("Valeur invalide pour " + candidats.get(rowIndex).getNom());
+                    return; // Arrêter le calcul si une valeur est incorrecte
+                }
             }
+            if (rowIndex != candidats.size()) {
+                afficherAlerte("Veuillez saisir tous les suffrages !");
+                return;
+            }
+
         }
+
 
         // Tri par votes décroissants
         List<Candidat> classement = candidats.stream()
@@ -198,6 +267,17 @@ public class ElectionGUI extends Application {
 
         // Toujours afficher les résultats détaillés du premier tour
         afficherDetailsPremierTour(classement);
+    }
+    private void validerVotants() {
+        try {
+            totalVotants = Integer.parseInt(tfVotants.getText());
+            if(totalVotants <= 0) throw new NumberFormatException();
+            panelPremierTour.setVisible(true);
+            btnValiderVotants.setDisable(true);
+            gridPremierTour.getChildren().forEach(node -> node.setDisable(false));
+        } catch (NumberFormatException e) {
+            afficherAlerte("Nombre de votants invalide ! Doit être > 0");
+        }
     }
     private void afficherDetailsPremierTour(List<Candidat> classement) {
         StringBuilder sb = new StringBuilder("Résultats premier tour:\n");
@@ -239,6 +319,21 @@ public class ElectionGUI extends Application {
 
     private void chargerCandidatsDepuisBDD() {
         // Implémenter la logique de chargement depuis MySQL
+    }
+    private void ajouterCandidat() {
+        String nom = tfNomCandidat.getText().trim();
+        if (!nom.isEmpty() && candidats.stream().noneMatch(c -> c.getNom().equalsIgnoreCase(nom))) {
+            try {
+                Candidat nouveau = new Candidat(nom);
+                DatabaseManager.sauvegarderCandidat(nouveau);
+                candidats.add(nouveau);
+                tfNomCandidat.clear();
+            } catch (Exception e) {
+                afficherAlerte("Erreur d'ajout dans la BDD: " + e.getMessage());
+            }
+        } else {
+            afficherAlerte("Nom invalide ou déjà existant !");
+        }
     }
 
     private void afficherAlerte(String message) {
