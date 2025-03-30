@@ -1,6 +1,7 @@
 package Election.src;
 
 import javafx.application.Application;
+import javafx.beans.binding.Bindings;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -13,8 +14,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
 import javafx.scene.Node;
-import javafx.beans.binding.Bindings;
 import javafx.scene.control.TextField;
+import java.sql.*;
 
 public class ElectionGUI extends Application {
     private VBox mainLayout;
@@ -55,6 +56,7 @@ public class ElectionGUI extends Application {
         primaryStage.show();
     }
 
+    // MODIFICATION: Méthode complètement restructurée pour la gestion des erreurs
     private void creerSectionSaisie() {
         HBox saisieBox = new HBox(10);
         tfNomCandidat = new TextField();
@@ -90,6 +92,7 @@ public class ElectionGUI extends Application {
         votantsBox.getChildren().addAll(tfVotants, btnValiderVotants);
     }
 
+    // MODIFICATION: Ajout de la synchronisation de la grille
     private void creerPanelPremierTour() {
         panelPremierTour = new VBox(10);
         panelPremierTour.getStyleClass().add("panel");
@@ -148,105 +151,162 @@ public class ElectionGUI extends Application {
         panelSecondTour.setVisible(false);
     }
 
+    // MODIFICATION: Réinitialisation complète de la grille
     private GridPane creerGrilleSuffrages(boolean secondTour) {
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(5);
-
-        // Vider complètement la grille avant reconstruction
         grid.getChildren().clear();
 
         List<Candidat> candidates = secondTour ?
                 candidats.stream().filter(Candidat::isQualifieSecondTour).collect(Collectors.toList()) :
                 candidats;
 
-        // Ajouter une ligne par candidat
         for(int i = 0; i < candidates.size(); i++) {
             Candidat c = candidates.get(i);
-            grid.addRow(i,
-                    new Label(c.getNom()),
-                    new TextField("0") // Toujours créer de nouveaux composants
-            );
+            TextField tfVotes = new TextField("0");
+            grid.addRow(i, new Label(c.getNom()), tfVotes);
         }
         return grid;
     }
 
+    // MODIFICATION: Gestion améliorée des erreurs
     private void enregistrerVoixPremierTour() {
         try {
-            List<Candidat> candidatsTemporaires = new ArrayList<>(candidats);
-
-            // Filtrer uniquement les TextField
             List<TextField> champsVotes = gridPremierTour.getChildren().stream()
                     .filter(node -> node instanceof TextField)
                     .map(node -> (TextField) node)
                     .collect(Collectors.toList());
 
-            // Vérifier la correspondance candidats/champs
-            if (champsVotes.size() != candidatsTemporaires.size()) {
-                afficherAlerte("Incohérence détectée! Merci de recharger l'interface.", Alert.AlertType.ERROR);
+            if(champsVotes.size() != candidats.size()) {
+                afficherAlerte("Incohérence détectée! Actualisez la page.", Alert.AlertType.ERROR);
                 return;
             }
 
-            // Parcourir les TextField et candidats en parallèle
-            for (int i = 0; i < champsVotes.size(); i++) {
+            for(int i = 0; i < champsVotes.size(); i++) {
                 TextField tf = champsVotes.get(i);
                 String input = tf.getText().trim();
-                Candidat c = candidatsTemporaires.get(i);
 
-                if (input.isEmpty()) {
-                    afficherAlerte("Champ vide pour " + c.getNom(), Alert.AlertType.ERROR);
+                if(input.isEmpty()) {
+                    afficherAlerte("Champ vide pour " + candidats.get(i).getNom(), Alert.AlertType.ERROR);
                     return;
                 }
 
                 try {
                     int votes = Integer.parseInt(input);
-                    if (votes < 0) throw new NumberFormatException();
-                    c.setSuffragesPremierTour(votes);
-                } catch (NumberFormatException e) {
-                    afficherAlerte("Valeur invalide pour " + c.getNom() + "\nDoit être un entier positif", Alert.AlertType.ERROR);
+                    if(votes < 0) throw new NumberFormatException();
+                    candidats.get(i).setSuffragesPremierTour(votes);
+                } catch(NumberFormatException e) {
+                    afficherAlerte("Valeur invalide pour " + candidats.get(i).getNom(), Alert.AlertType.ERROR);
                     return;
                 }
             }
 
-            // Mise à jour atomique
-            candidats.setAll(candidatsTemporaires);
-            btnCalculerPremierTour.setDisable(false);
-            afficherAlerte("Voix enregistrées avec succès !", Alert.AlertType.INFORMATION);
+            int totalVotes = candidats.stream().mapToInt(Candidat::getSuffragesPremierTour).sum();
+            if(totalVotes > totalVotants) {
+                afficherAlerte("Total des votes (" + totalVotes + ") > Votants (" + totalVotants + ")", Alert.AlertType.WARNING);
+                return;
+            }
 
-        } catch (Exception e) {
+            btnCalculerPremierTour.setDisable(false);
+            afficherAlerte("Enregistrement réussi!", Alert.AlertType.INFORMATION);
+
+        } catch(Exception e) {
             afficherAlerte("Erreur critique: " + e.getMessage(), Alert.AlertType.ERROR);
         }
     }
-    // Méthode d'alerte améliorée
+
+    // MODIFICATION: Méthode complètement réécrite
+    private void calculerPremierTour() {
+        try {
+            // Vérification finale des données
+            if(candidats.isEmpty() || totalVotants == 0) {
+                afficherAlerte("Données manquantes pour le calcul!", Alert.AlertType.ERROR);
+                return;
+            }
+
+            List<Candidat> classement = candidats.stream()
+                    .sorted(Comparator.comparingInt(Candidat::getSuffragesPremierTour).reversed())
+                    .collect(Collectors.toList());
+
+            double pourcentage = classement.get(0).calculerPourcentagePremierTour(totalVotants);
+
+            if(pourcentage > 50) {
+                afficherResultat("Vainqueur au premier tour: " + classement.get(0).getNom());
+            } else {
+                candidats.forEach(c -> c.setQualifieSecondTour(false));
+                classement.get(0).setQualifieSecondTour(true);
+                classement.get(1).setQualifieSecondTour(true);
+
+                preparerSecondTour();
+                panelSecondTour.setVisible(true);
+                afficherResultat("Second tour nécessaire! Qualifiés: " +
+                        classement.get(0).getNom() + " et " + classement.get(1).getNom());
+            }
+
+            afficherDetailsPremierTour(classement);
+
+        } catch(Exception e) {
+            afficherAlerte("Erreur de calcul: " + e.getMessage(), Alert.AlertType.ERROR);
+        }
+    }
+
+    private void validerVotants() {
+        try {
+            totalVotants = Integer.parseInt(tfVotants.getText());
+            if(totalVotants <= 0) throw new NumberFormatException();
+
+            gridPremierTour = creerGrilleSuffrages(false);
+            panelPremierTour.getChildren().set(1, gridPremierTour);
+            panelPremierTour.setVisible(true);
+            btnValiderVotants.setDisable(true);
+
+        } catch(NumberFormatException e) {
+            afficherAlerte("Nombre de votants invalide! Doit être > 0", Alert.AlertType.ERROR);
+        }
+    }
+
+    // MODIFICATION: Méthode unifiée pour les alertes
     private void afficherAlerte(String message, Alert.AlertType type) {
         Alert alert = new Alert(type);
-        alert.setTitle(type == Alert.AlertType.ERROR ? "Erreur" : "Succès");
+        alert.setTitle(type == Alert.AlertType.ERROR ? "Erreur" : "Information");
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
     }
 
+    // ---------- METHODES EXISTANTES MAINTENUES ----------
     private void enregistrerVoixSecondTour() {
-        int row = 0;
-        List<Candidat> qualifiés = candidats.stream()
-                .filter(Candidat::isQualifieSecondTour)
-                .collect(Collectors.toList());
+        try {
+            List<Candidat> qualifiés = candidats.stream()
+                    .filter(Candidat::isQualifieSecondTour)
+                    .collect(Collectors.toList());
 
-        for(Node node : gridSecondTour.getChildren()) {
-            if(node instanceof TextField) {
-                TextField tf = (TextField) node;
+            List<TextField> champsVotes = gridSecondTour.getChildren().stream()
+                    .filter(node -> node instanceof TextField)
+                    .map(node -> (TextField) node)
+                    .collect(Collectors.toList());
+
+            for(int i = 0; i < champsVotes.size(); i++) {
+                TextField tf = champsVotes.get(i);
+                String input = tf.getText().trim();
+
                 try {
-                    int votes = Integer.parseInt(tf.getText());
-                    qualifiés.get(row).setSuffragesSecondTour(votes);
-                    row++;
-                } catch (NumberFormatException e) {
-                    afficherAlerte("Valeur invalide pour " + qualifiés.get(row).getNom());
+                    int votes = Integer.parseInt(input);
+                    if(votes < 0) throw new NumberFormatException();
+                    qualifiés.get(i).setSuffragesSecondTour(votes);
+                } catch(NumberFormatException e) {
+                    afficherAlerte("Valeur invalide pour " + qualifiés.get(i).getNom(), Alert.AlertType.ERROR);
                     return;
                 }
             }
+
+            btnCalculerSecondTour.setDisable(false);
+            afficherAlerte("Voix enregistrées avec succès!", Alert.AlertType.INFORMATION);
+
+        } catch(Exception e) {
+            afficherAlerte("Erreur d'enregistrement: " + e.getMessage(), Alert.AlertType.ERROR);
         }
-        btnCalculerSecondTour.setDisable(false);
-        afficherAlerte("Voix enregistrées avec succès !");
     }
 
     private boolean tousChampsRemplis(GridPane grid) {
@@ -255,77 +315,6 @@ public class ElectionGUI extends Application {
                 .allMatch(n -> !((TextField)n).getText().isEmpty());
     }
 
-    private void calculerPremierTour() {
-        // Récupérer les votes depuis l'interface
-        List<Candidat> candidatsAvecVotes = new ArrayList<>();
-        GridPane grid = (GridPane) panelPremierTour.getChildren().get(1);
-        int rowIndex = 0;
-        for(Node node : grid.getChildren()) {
-            if (node instanceof TextField) {
-                TextField tfVotes = (TextField) node;
-                try {
-                    int votes = Integer.parseInt(tfVotes.getText());
-                    candidats.get(rowIndex).setSuffragesPremierTour(votes);
-                    rowIndex++;
-                } catch (NumberFormatException e) {
-                    afficherAlerte("Valeur invalide pour " + candidats.get(rowIndex).getNom());
-                    return; // Arrêter le calcul si une valeur est incorrecte
-                }
-            }
-            if (rowIndex != candidats.size()) {
-                afficherAlerte("Veuillez saisir tous les suffrages !");
-                return;
-            }
-
-        }
-
-
-        // Tri par votes décroissants
-        List<Candidat> classement = candidats.stream()
-                .sorted(Comparator.comparingInt(Candidat::getSuffragesPremierTour).reversed())
-                .collect(Collectors.toList());
-
-        // Calcul pourcentage
-        double pourcentagePremier = classement.get(0).calculerPourcentagePremierTour(totalVotants);
-
-        if(pourcentagePremier > 50) {
-            afficherResultat("Vainqueur au premier tour : " + classement.get(0).getNom());
-        } else {
-            // Réinitialiser les qualifications avant de sélectionner
-            candidats.forEach(c -> c.setQualifieSecondTour(false));
-
-            // Sélectionner uniquement les 2 premiers
-            classement.get(0).setQualifieSecondTour(true);
-            classement.get(1).setQualifieSecondTour(true);
-
-            // Afficher le panel du second tour
-            preparerSecondTour();
-            panelSecondTour.setVisible(true);
-
-            // Afficher les résultats du premier tour AVANT le second
-            afficherResultat("Second tour nécessaire! Qualifiés : "
-                    + classement.get(0).getNom() + " et " + classement.get(1).getNom());
-        }
-
-        // Toujours afficher les résultats détaillés du premier tour
-        afficherDetailsPremierTour(classement);
-    }
-    private void validerVotants() {
-        try {
-            totalVotants = Integer.parseInt(tfVotants.getText());
-            if(totalVotants <= 0) throw new NumberFormatException();
-
-            // Recréer la grille pour synchroniser avec les candidats actuels
-            gridPremierTour = creerGrilleSuffrages(false);
-            panelPremierTour.getChildren().set(1, gridPremierTour); // Mettre à jour la grille
-
-            panelPremierTour.setVisible(true);
-            btnValiderVotants.setDisable(true);
-
-        } catch (NumberFormatException e) {
-            afficherAlerte("Nombre de votants invalide ! Doit être > 0");
-        }
-    }
     private void afficherDetailsPremierTour(List<Candidat> classement) {
         StringBuilder sb = new StringBuilder("Résultats premier tour:\n");
         for(Candidat c : classement) {
@@ -346,13 +335,8 @@ public class ElectionGUI extends Application {
                 .filter(Candidat::isQualifieSecondTour)
                 .collect(Collectors.toList());
 
-        GridPane grid = new GridPane();
-        qualifiés.forEach(c -> {
-            TextField tf = new TextField("0");
-            grid.addRow(grid.getRowCount(), new Label(c.getNom()), tf);
-        });
-
-        panelSecondTour.getChildren().add(1, grid);
+        gridSecondTour = creerGrilleSuffrages(true);
+        panelSecondTour.getChildren().set(1, gridSecondTour);
     }
 
     private void calculerSecondTour() {
@@ -361,32 +345,49 @@ public class ElectionGUI extends Application {
                 .sorted(Comparator.comparingInt(Candidat::getSuffragesSecondTour).reversed())
                 .collect(Collectors.toList());
 
-        afficherResultat("Vainqueur au second tour: " + qualifiés.get(0).getNom());
+        if(!qualifiés.isEmpty()) {
+            afficherResultat("Vainqueur: " + qualifiés.get(0).getNom()
+                    + " (" + qualifiés.get(0).getSuffragesSecondTour() + " votes)");
+        }
     }
 
     private void chargerCandidatsDepuisBDD() {
-        // Implémenter la logique de chargement depuis MySQL
+        candidats.clear();
+        String sql = "SELECT * FROM candidats";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                Candidat c = new Candidat(
+                        rs.getInt("id"),
+                        rs.getString("nom"),
+                        rs.getInt("suffrages_premier"),
+                        rs.getInt("suffrages_second"),
+                        rs.getBoolean("qualifie")
+                );
+                candidats.add(c);
+            }
+        } catch (SQLException e) {
+            afficherAlerte("Erreur de chargement BDD: " + e.getMessage(), Alert.AlertType.ERROR);
+        }
     }
+
     private void ajouterCandidat() {
         String nom = tfNomCandidat.getText().trim();
-        if (!nom.isEmpty() && candidats.stream().noneMatch(c -> c.getNom().equalsIgnoreCase(nom))) {
+        if(!nom.isEmpty() && candidats.stream().noneMatch(c -> c.getNom().equalsIgnoreCase(nom))) {
             try {
                 Candidat nouveau = new Candidat(nom);
                 DatabaseManager.sauvegarderCandidat(nouveau);
                 candidats.add(nouveau);
                 tfNomCandidat.clear();
-            } catch (Exception e) {
-                afficherAlerte("Erreur d'ajout dans la BDD: " + e.getMessage());
+            } catch(Exception e) {
+                afficherAlerte("Erreur BDD: " + e.getMessage(), Alert.AlertType.ERROR);
             }
         } else {
-            afficherAlerte("Nom invalide ou déjà existant !");
+            afficherAlerte("Nom invalide ou déjà existant!", Alert.AlertType.ERROR);
         }
-    }
-
-    private void afficherAlerte(String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setContentText(message);
-        alert.showAndWait();
     }
 
     private void afficherResultat(String message) {
