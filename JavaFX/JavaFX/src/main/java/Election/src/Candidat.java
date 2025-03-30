@@ -1,33 +1,86 @@
 package Election.src;
 
-import javafx.beans.property.IntegerProperty;
-import javafx.beans.property.SimpleIntegerProperty;
-import javafx.beans.property.SimpleStringProperty;
-import javafx.beans.property.StringProperty;
-
 public class Candidat {
-    private final StringProperty nom = new SimpleStringProperty();
-    private final IntegerProperty suffragesPremierTour = new SimpleIntegerProperty();
-    private final IntegerProperty suffragesSecondTour = new SimpleIntegerProperty();
+    private int id;
+    private String nom;
+    private int suffragesPremierTour;
+    private int suffragesSecondTour;
+    private boolean qualifieSecondTour;
 
-    public Candidat(String nom) {
-        this.nom.set(nom);
+    // Constructeurs
+    public Candidat() {
     }
 
-    // === Getters/Setters pour les propriétés ===
+    public Candidat(String nom) {
+        this.nom = nom;
+        this.suffragesPremierTour = 0;
+        this.suffragesSecondTour = 0;
+        this.qualifieSecondTour = false;
+    }
 
-    // Nom
-    public StringProperty nomProperty() { return nom; }
-    public String getNom() { return nom.get(); }
-    public void setNom(String nom) { this.nom.set(nom); }
+    public Candidat(int id, String nom, int suffragesPremierTour, int suffragesSecondTour, boolean qualifieSecondTour) {
+        this.id = id;
+        this.nom = nom;
+        this.suffragesPremierTour = suffragesPremierTour;
+        this.suffragesSecondTour = suffragesSecondTour;
+        this.qualifieSecondTour = qualifieSecondTour;
+    }
 
-    // Suffrages Premier Tour
-    public IntegerProperty suffragesPremierTourProperty() { return suffragesPremierTour; }
-    public int getSuffragesPremierTour() { return suffragesPremierTour.get(); }
-    public void setSuffragesPremierTour(int voix) { suffragesPremierTour.set(voix); }
+    // Getters
+    public int getId() {
+        return id;
+    }
 
-    // Suffrages Second Tour
-    public IntegerProperty suffragesSecondTourProperty() { return suffragesSecondTour; }
-    public int getSuffragesSecondTour() { return suffragesSecondTour.get(); }
-    public void setSuffragesSecondTour(int voix) { suffragesSecondTour.set(voix); }
+    public String getNom() {
+        return nom;
+    }
+
+    public int getSuffragesPremierTour() {
+        return suffragesPremierTour;
+    }
+
+    public int getSuffragesSecondTour() {
+        return suffragesSecondTour;
+    }
+
+    public boolean isQualifieSecondTour() {
+        return qualifieSecondTour;
+    }
+
+    // Setters
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public void setNom(String nom) {
+        this.nom = nom;
+    }
+
+    public void setSuffragesPremierTour(int suffragesPremierTour) {
+        this.suffragesPremierTour = suffragesPremierTour;
+    }
+
+    public void setSuffragesSecondTour(int suffragesSecondTour) {
+        this.suffragesSecondTour = suffragesSecondTour;
+    }
+
+    public void setQualifieSecondTour(boolean qualifieSecondTour) {
+        this.qualifieSecondTour = qualifieSecondTour;
+    }
+
+    // Méthode utilitaire pour calculer le pourcentage
+    public double calculerPourcentagePremierTour(int totalVotants) {
+        if (totalVotants == 0) return 0.0;
+        return (suffragesPremierTour * 100.0) / totalVotants;
+    }
+
+    public double calculerPourcentageSecondTour(int totalVotants) {
+        if (totalVotants == 0) return 0.0;
+        return (suffragesSecondTour * 100.0) / totalVotants;
+    }
+
+    @Override
+    public String toString() {
+        return nom + " (" + suffragesPremierTour + " votes)";
+    }
 }
