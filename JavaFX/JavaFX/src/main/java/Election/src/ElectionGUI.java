@@ -153,73 +153,70 @@ public class ElectionGUI extends Application {
         grid.setHgap(10);
         grid.setVgap(5);
 
+        // Vider complètement la grille avant reconstruction
+        grid.getChildren().clear();
+
         List<Candidat> candidates = secondTour ?
                 candidats.stream().filter(Candidat::isQualifieSecondTour).collect(Collectors.toList()) :
                 candidats;
 
+        // Ajouter une ligne par candidat
         for(int i = 0; i < candidates.size(); i++) {
             Candidat c = candidates.get(i);
-            TextField tfVotes = new TextField("0");
-            tfVotes.setId("vote_" + c.getId());
-            grid.addRow(i, new Label(c.getNom()), tfVotes);
+            grid.addRow(i,
+                    new Label(c.getNom()),
+                    new TextField("0") // Toujours créer de nouveaux composants
+            );
         }
         return grid;
     }
 
     private void enregistrerVoixPremierTour() {
         try {
-            // Créer une liste temporaire pour éviter les modifications concurrentes
             List<Candidat> candidatsTemporaires = new ArrayList<>(candidats);
 
-            // Parcourir uniquement les TextField de la grille
-            int indexCandidat = 0;
-            for (Node node : gridPremierTour.getChildren()) {
-                if (node instanceof TextField) {
-                    TextField tf = (TextField) node;
-                    String input = tf.getText().trim();
+            // Filtrer uniquement les TextField
+            List<TextField> champsVotes = gridPremierTour.getChildren().stream()
+                    .filter(node -> node instanceof TextField)
+                    .map(node -> (TextField) node)
+                    .collect(Collectors.toList());
 
-                    // Validation basique
-                    if (input.isEmpty()) {
-                        afficherAlerte("Veuillez remplir tous les champs !");
-                        return;
-                    }
-
-                    // Conversion sécurisée
-                    int votes;
-                    try {
-                        votes = Integer.parseInt(input);
-                        if (votes < 0) throw new NumberFormatException();
-                    } catch (NumberFormatException e) {
-                        afficherAlerte("Valeur invalide pour " + candidatsTemporaires.get(indexCandidat).getNom() + "\nDoit être un nombre positif");
-                        return;
-                    }
-
-                    // Mise à jour synchrone
-                    if (indexCandidat < candidatsTemporaires.size()) {
-                        candidatsTemporaires.get(indexCandidat).setSuffragesPremierTour(votes);
-                        indexCandidat++;
-                    }
-                }
+            // Vérifier la correspondance candidats/champs
+            if (champsVotes.size() != candidatsTemporaires.size()) {
+                afficherAlerte("Incohérence détectée! Merci de recharger l'interface.", Alert.AlertType.ERROR);
+                return;
             }
 
-            // Vérification complétude
-            if (indexCandidat != candidatsTemporaires.size()) {
-                afficherAlerte("Nombre de champs incompatibles avec le nombre de candidats !");
-                return;
+            // Parcourir les TextField et candidats en parallèle
+            for (int i = 0; i < champsVotes.size(); i++) {
+                TextField tf = champsVotes.get(i);
+                String input = tf.getText().trim();
+                Candidat c = candidatsTemporaires.get(i);
+
+                if (input.isEmpty()) {
+                    afficherAlerte("Champ vide pour " + c.getNom(), Alert.AlertType.ERROR);
+                    return;
+                }
+
+                try {
+                    int votes = Integer.parseInt(input);
+                    if (votes < 0) throw new NumberFormatException();
+                    c.setSuffragesPremierTour(votes);
+                } catch (NumberFormatException e) {
+                    afficherAlerte("Valeur invalide pour " + c.getNom() + "\nDoit être un entier positif", Alert.AlertType.ERROR);
+                    return;
+                }
             }
 
             // Mise à jour atomique
             candidats.setAll(candidatsTemporaires);
             btnCalculerPremierTour.setDisable(false);
-
-            // Confirmation visuelle
             afficherAlerte("Voix enregistrées avec succès !", Alert.AlertType.INFORMATION);
 
         } catch (Exception e) {
-            afficherAlerte("Erreur critique lors de l'enregistrement : " + e.getMessage());
+            afficherAlerte("Erreur critique: " + e.getMessage(), Alert.AlertType.ERROR);
         }
     }
-
     // Méthode d'alerte améliorée
     private void afficherAlerte(String message, Alert.AlertType type) {
         Alert alert = new Alert(type);
@@ -317,9 +314,14 @@ public class ElectionGUI extends Application {
         try {
             totalVotants = Integer.parseInt(tfVotants.getText());
             if(totalVotants <= 0) throw new NumberFormatException();
+
+            // Recréer la grille pour synchroniser avec les candidats actuels
+            gridPremierTour = creerGrilleSuffrages(false);
+            panelPremierTour.getChildren().set(1, gridPremierTour); // Mettre à jour la grille
+
             panelPremierTour.setVisible(true);
             btnValiderVotants.setDisable(true);
-            gridPremierTour.getChildren().forEach(node -> node.setDisable(false));
+
         } catch (NumberFormatException e) {
             afficherAlerte("Nombre de votants invalide ! Doit être > 0");
         }
