@@ -56,7 +56,6 @@ public class ElectionGUI extends Application {
         primaryStage.show();
     }
 
-    // MODIFICATION: Méthode complètement restructurée pour la gestion des erreurs
     private void creerSectionSaisie() {
         HBox saisieBox = new HBox(10);
         tfNomCandidat = new TextField();
@@ -92,7 +91,6 @@ public class ElectionGUI extends Application {
         votantsBox.getChildren().addAll(tfVotants, btnValiderVotants);
     }
 
-    // MODIFICATION: Ajout de la synchronisation de la grille
     private void creerPanelPremierTour() {
         panelPremierTour = new VBox(10);
         panelPremierTour.getStyleClass().add("panel");
@@ -151,7 +149,6 @@ public class ElectionGUI extends Application {
         panelSecondTour.setVisible(false);
     }
 
-    // MODIFICATION: Réinitialisation complète de la grille
     private GridPane creerGrilleSuffrages(boolean secondTour) {
         GridPane grid = new GridPane();
         grid.setHgap(10);
@@ -170,7 +167,7 @@ public class ElectionGUI extends Application {
         return grid;
     }
 
-    // MODIFICATION: Gestion améliorée des erreurs
+    // MODIFICATION: Ajout vérification cohérence votes/votants
     private void enregistrerVoixPremierTour() {
         try {
             List<TextField> champsVotes = gridPremierTour.getChildren().stream()
@@ -216,18 +213,21 @@ public class ElectionGUI extends Application {
         }
     }
 
-    // MODIFICATION: Méthode complètement réécrite
+    // MODIFICATION: Classement explicite + vérification données
     private void calculerPremierTour() {
         try {
-            // Vérification finale des données
             if(candidats.isEmpty() || totalVotants == 0) {
                 afficherAlerte("Données manquantes pour le calcul!", Alert.AlertType.ERROR);
                 return;
             }
 
+            // Tri par votes décroissants
             List<Candidat> classement = candidats.stream()
                     .sorted(Comparator.comparingInt(Candidat::getSuffragesPremierTour).reversed())
                     .collect(Collectors.toList());
+
+            // Affichage classement
+            afficherDetailsPremierTour(classement);
 
             double pourcentage = classement.get(0).calculerPourcentagePremierTour(totalVotants);
 
@@ -244,11 +244,51 @@ public class ElectionGUI extends Application {
                         classement.get(0).getNom() + " et " + classement.get(1).getNom());
             }
 
-            afficherDetailsPremierTour(classement);
+        } catch(Exception e) {
+            afficherAlerte("Erreur de calcul: " + e.getMessage(), Alert.AlertType.ERROR);
+        }
+    }
+
+    // MODIFICATION: Ajout classement second tour + pourcentages
+    private void calculerSecondTour() {
+        try {
+            List<Candidat> qualifiés = candidats.stream()
+                    .filter(Candidat::isQualifieSecondTour)
+                    .sorted(Comparator.comparingInt(Candidat::getSuffragesSecondTour).reversed())
+                    .collect(Collectors.toList());
+
+            if(qualifiés.isEmpty()) {
+                afficherAlerte("Aucun candidat qualifié pour le second tour!", Alert.AlertType.ERROR);
+                return;
+            }
+
+            // Affichage détaillé
+            afficherDetailsSecondTour(qualifiés);
+
+            // Déclaration vainqueur
+            Candidat vainqueur = qualifiés.get(0);
+            afficherResultat("Vainqueur au second tour: " + vainqueur.getNom()
+                    + " (" + vainqueur.calculerPourcentageSecondTour(totalVotants) + "%)");
 
         } catch(Exception e) {
             afficherAlerte("Erreur de calcul: " + e.getMessage(), Alert.AlertType.ERROR);
         }
+    }
+
+    // NOUVEAU: Affichage détaillé second tour
+    private void afficherDetailsSecondTour(List<Candidat> qualifiés) {
+        StringBuilder sb = new StringBuilder("Résultats second tour:\n");
+        for(Candidat c : qualifiés) {
+            sb.append(String.format("- %s: %d votes (%.1f%%)\n",
+                    c.getNom(),
+                    c.getSuffragesSecondTour(),
+                    c.calculerPourcentageSecondTour(totalVotants)));
+        }
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setHeaderText("Détails du second tour");
+        alert.setContentText(sb.toString());
+        alert.showAndWait();
     }
 
     private void validerVotants() {
@@ -266,7 +306,6 @@ public class ElectionGUI extends Application {
         }
     }
 
-    // MODIFICATION: Méthode unifiée pour les alertes
     private void afficherAlerte(String message, Alert.AlertType type) {
         Alert alert = new Alert(type);
         alert.setTitle(type == Alert.AlertType.ERROR ? "Erreur" : "Information");
@@ -275,7 +314,6 @@ public class ElectionGUI extends Application {
         alert.showAndWait();
     }
 
-    // ---------- METHODES EXISTANTES MAINTENUES ----------
     private void enregistrerVoixSecondTour() {
         try {
             List<Candidat> qualifiés = candidats.stream()
@@ -316,9 +354,11 @@ public class ElectionGUI extends Application {
     }
 
     private void afficherDetailsPremierTour(List<Candidat> classement) {
-        StringBuilder sb = new StringBuilder("Résultats premier tour:\n");
-        for(Candidat c : classement) {
-            sb.append(String.format("- %s: %d votes (%.1f%%)\n",
+        StringBuilder sb = new StringBuilder("Classement premier tour:\n");
+        for(int i = 0; i < classement.size(); i++) {
+            Candidat c = classement.get(i);
+            sb.append(String.format("%d. %s: %d votes (%.1f%%)\n",
+                    i+1,
                     c.getNom(),
                     c.getSuffragesPremierTour(),
                     c.calculerPourcentagePremierTour(totalVotants)));
@@ -337,18 +377,6 @@ public class ElectionGUI extends Application {
 
         gridSecondTour = creerGrilleSuffrages(true);
         panelSecondTour.getChildren().set(1, gridSecondTour);
-    }
-
-    private void calculerSecondTour() {
-        List<Candidat> qualifiés = candidats.stream()
-                .filter(Candidat::isQualifieSecondTour)
-                .sorted(Comparator.comparingInt(Candidat::getSuffragesSecondTour).reversed())
-                .collect(Collectors.toList());
-
-        if(!qualifiés.isEmpty()) {
-            afficherResultat("Vainqueur: " + qualifiés.get(0).getNom()
-                    + " (" + qualifiés.get(0).getSuffragesSecondTour() + " votes)");
-        }
     }
 
     private void chargerCandidatsDepuisBDD() {
