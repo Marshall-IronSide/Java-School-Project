@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
 import javafx.scene.Node;
+import javafx.beans.binding.Bindings;
 import javafx.scene.control.TextField;
 
 public class ElectionGUI extends Application {
@@ -166,22 +167,66 @@ public class ElectionGUI extends Application {
     }
 
     private void enregistrerVoixPremierTour() {
-        int row = 0;
-        for(Node node : gridPremierTour.getChildren()) {
-            if(node instanceof TextField) {
-                TextField tf = (TextField) node;
-                try {
-                    int votes = Integer.parseInt(tf.getText());
-                    candidats.get(row).setSuffragesPremierTour(votes);
-                    row++;
-                } catch (NumberFormatException e) {
-                    afficherAlerte("Valeur invalide pour " + candidats.get(row).getNom());
-                    return;
+        try {
+            // Créer une liste temporaire pour éviter les modifications concurrentes
+            List<Candidat> candidatsTemporaires = new ArrayList<>(candidats);
+
+            // Parcourir uniquement les TextField de la grille
+            int indexCandidat = 0;
+            for (Node node : gridPremierTour.getChildren()) {
+                if (node instanceof TextField) {
+                    TextField tf = (TextField) node;
+                    String input = tf.getText().trim();
+
+                    // Validation basique
+                    if (input.isEmpty()) {
+                        afficherAlerte("Veuillez remplir tous les champs !");
+                        return;
+                    }
+
+                    // Conversion sécurisée
+                    int votes;
+                    try {
+                        votes = Integer.parseInt(input);
+                        if (votes < 0) throw new NumberFormatException();
+                    } catch (NumberFormatException e) {
+                        afficherAlerte("Valeur invalide pour " + candidatsTemporaires.get(indexCandidat).getNom() + "\nDoit être un nombre positif");
+                        return;
+                    }
+
+                    // Mise à jour synchrone
+                    if (indexCandidat < candidatsTemporaires.size()) {
+                        candidatsTemporaires.get(indexCandidat).setSuffragesPremierTour(votes);
+                        indexCandidat++;
+                    }
                 }
             }
+
+            // Vérification complétude
+            if (indexCandidat != candidatsTemporaires.size()) {
+                afficherAlerte("Nombre de champs incompatibles avec le nombre de candidats !");
+                return;
+            }
+
+            // Mise à jour atomique
+            candidats.setAll(candidatsTemporaires);
+            btnCalculerPremierTour.setDisable(false);
+
+            // Confirmation visuelle
+            afficherAlerte("Voix enregistrées avec succès !", Alert.AlertType.INFORMATION);
+
+        } catch (Exception e) {
+            afficherAlerte("Erreur critique lors de l'enregistrement : " + e.getMessage());
         }
-        btnCalculerPremierTour.setDisable(false);
-        afficherAlerte("Voix enregistrées avec succès !");
+    }
+
+    // Méthode d'alerte améliorée
+    private void afficherAlerte(String message, Alert.AlertType type) {
+        Alert alert = new Alert(type);
+        alert.setTitle(type == Alert.AlertType.ERROR ? "Erreur" : "Succès");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     private void enregistrerVoixSecondTour() {
